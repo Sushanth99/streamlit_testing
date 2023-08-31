@@ -1,36 +1,84 @@
+
+## Author: Sushanth Reddy Kamaram
+## Email: ksushanthreddy0605@gmail.com
+
+import os
+import sys
+import yaml
+
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+mpl.use('Agg')
+from utilities import *
 import streamlit as st
-import pandas as pd
-import numpy as np
 
-st.title('Uber pickups in NYC')
 
-DATE_COLUMN = 'date/time'
-DATA_URL = ('https://s3-us-west-2.amazonaws.com/'
-            'streamlit-demo-data/uber-raw-data-sep14.csv.gz')
+
+# params_file = sys.argv[1]
+# print(params_file)
 
 @st.cache_data
-def load_data(nrows):
-    data = pd.read_csv(DATA_URL, nrows=nrows)
-    lowercase = lambda x: str(x).lower()
-    data.rename(lowercase, axis='columns', inplace=True)
-    data[DATE_COLUMN] = pd.to_datetime(data[DATE_COLUMN])
-    return data
+def generate_figure(params_file):
+    with open(params_file, 'r') as f:
+        params = yaml.safe_load(f)
 
-data_load_state = st.text('Loading data...')
-data = load_data(10000)
-data_load_state.text("Done! (using st.cache_data)")
 
-if st.checkbox('Show raw data'):
-    st.subheader('Raw data')
-    st.write(data)
+    TAG = params['data']['TAG']
+    path = params['data']['path']
 
-st.subheader('Number of pickups by hour')
-hist_values = np.histogram(data[DATE_COLUMN].dt.hour, bins=24, range=(0,24))[0]
-st.bar_chart(hist_values)
+    tmin = params['selection']['tmin']
+    tmax = params['selection']['tmax']
+    flux_ratio = params['selection']['flux_ratio']
+    index_ratio = params['selection']['index_ratio']
+    min_ts = params['selection']['min_ts']
 
-# Some number in the range 0-23
-hour_to_filter = st.slider('hour', 0, 23, 17)
-filtered_data = data[data[DATE_COLUMN].dt.hour == hour_to_filter]
+    fig_width = params['plot']['fig_width']
+    fig_height = params['plot']['fig_height']
+    dpi = params['plot']['dpi']
+    label = params['plot']['label']
+    plot_titles = {TAG: params['plot']['plot_title']}
+    plot_name = params['plot']['plot_name']
+    save_dir = params['plot']['save_dir']
+    save_figure = params['plot']['save_figure']
 
-st.subheader('Map of all pickups at %s:00' % hour_to_filter)
-st.map(filtered_data)
+    source = Source(path)
+    source.filter_data(flux_ratio=flux_ratio, index_ratio=index_ratio, min_ts=min_ts)
+    if tmin is None and tmax is None:
+        df = source.df
+    elif tmin is None:
+        df = source.df.loc[:tmax]
+    elif tmax is None:
+        df = source.df.loc[tmin:]
+    else:
+        df = source.df.loc[tmin:tmax]
+
+
+    figsize = (fig_width, fig_height)
+    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    FACTOR = 1e6
+    params = dict(fmt='.-', color='blue', ecolor='green', label=label, lw=2)
+    ax.errorbar(df.index, df['flux']*FACTOR, 
+                yerr=df['flux_error']*FACTOR, 
+                **params)
+    
+    fontsize = 30; labelsize=30
+    ax.legend(fontsize=fontsize)
+    # ax.set_ylim(0, 5e-6)
+    ax.set_xlabel('MJD', fontsize=fontsize)
+    ax.set_ylabel('Photon Flux ($ 10^{-6} \; \mathrm{ph \; cm^{-2} \; s^{-1}}$)', fontsize=fontsize)
+    ax.set_title(f'{plot_titles[TAG]} (TS > {min_ts}) (MJD: {min(df.index):.2f}-{max(df.index):.2f})', fontsize=25)
+    ax.tick_params(axis='both', which='both', direction='in', length=10, labelsize=labelsize)
+    if save_figure:
+        plt.savefig(f'{os.path.join(save_dir, plot_name)}')
+
+        try:
+            print(f'Plot saved to {os.path.join(save_dir, plot_name)}') 
+        except:
+            print(f'Plot saved to {os.path.join(os.getcwd(), plot_name)}')
+    
+    st.line_chart(data=df, y='flux')
+    return fig
+
+option = st.multiselect('Choose source:', ['4C +01.02', 'PKS 0903-57', 'S4 0954+65'])
+fig = generate_figure('params_sourceA_task2.yaml')
+st.pyplot(fig)
