@@ -1,0 +1,20 @@
+data:
+    TAG: 'sourceA'
+    path: '4fgl_j0108.6+0134_lightcurve.fits'
+
+selection:
+    tmin: null
+    tmax: null
+    flux_ratio: 0
+    index_ratio: 0
+    min_ts: 9
+
+plot:
+    fig_width: 40
+    fig_height: 20
+    dpi: 100
+    label: '1-day binning'
+    plot_title: '4C +01.02 light curve'
+    plot_name: 'sourceA_lc_1_day_binning_task2.pdf'
+    save_dir: '/Users/sushanthreddy/Sushanth/streamlit_tut/'
+    save_figure: false
